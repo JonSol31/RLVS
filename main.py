@@ -1,13 +1,29 @@
-from env.vex_env import VexEnv
+import pygame
+
+from simulation.match import Match
+from rendering.renderer import Renderer
 
 
 def main():
-    env = VexEnv()
+    renderer = Renderer()
+    match = Match()
 
-    print("Environment initialized")
+    clock = pygame.time.Clock()
 
-    state = env.reset()
-    print(state)
+    running = True
+
+    while running:
+        dt = clock.tick(60) / 1000
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+
+        match.update(dt)
+
+        renderer.render(match)
+
+    pygame.quit()
 
 
 if __name__ == "__main__":
