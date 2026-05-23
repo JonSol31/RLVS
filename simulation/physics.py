@@ -92,8 +92,13 @@ def resolve_goal_collision(robot, goals, blocks, dt):
     for goal in goals:
         if goal.contains_point(robot.x, robot.y):
             speed = math.hypot(robot.vx, robot.vy)
-            robot.reward -= 2.0 * dt
+            crash_penalty = 10.0
+            if speed > 4.0:
+                crash_penalty += (speed - 4.0) * 4.0
+            robot.reward -= crash_penalty
+
             if speed > 5.0:
+                robot.reward -= 10.0
                 _eject_goal_blocks(goal, blocks, goals)
 
             local_x, local_y = goal.world_to_local(robot.x, robot.y)

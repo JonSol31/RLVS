@@ -10,13 +10,20 @@ from agents.policy_agent import PolicyAgent
 from agents.block_seeker_agent import BlockSeekerAgent
 
 
-def find_latest_agent(search_dir="."):
-    pattern = os.path.join(search_dir, "best_agent_*.json")
-    files = glob.glob(pattern)
-    if not files:
+def find_latest_agent(search_dirs):
+    if isinstance(search_dirs, str):
+        search_dirs = [search_dirs]
+
+    candidates = []
+    for search_dir in search_dirs:
+        pattern = os.path.join(search_dir, "best_agent_*.json")
+        candidates.extend(glob.glob(pattern))
+
+    if not candidates:
         return None
-    files.sort(key=os.path.getmtime, reverse=True)
-    return files[0]
+
+    candidates.sort(key=os.path.getmtime, reverse=True)
+    return candidates[0]
 
 
 def load_agent(path):
@@ -28,7 +35,7 @@ def load_agent(path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--agent", default=None, help="Path to agent JSON. If omitted, auto-find latest best_agent_*.json")
-    parser.add_argument("--agent-dir", default=".", help="Directory to search for saved agents when --agent is omitted")
+    parser.add_argument("--agent-dir", default="models", help="Directory to search for saved agents when --agent is omitted")
     args = parser.parse_args()
 
     renderer = Renderer()
@@ -37,7 +44,7 @@ def main():
     # choose agent
     agent_path = args.agent
     if agent_path is None:
-        agent_path = find_latest_agent(args.agent_dir)
+        agent_path = find_latest_agent([args.agent_dir, "."])
 
     if agent_path:
         print(f"Loading agent from {agent_path}")

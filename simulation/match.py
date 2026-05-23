@@ -61,8 +61,8 @@ class Match:
 
             robot.update(throttle, turn, dt)
 
-            #resolve_wall_collision(robot)
-            #resolve_goal_collision(robot, self.field.get_goals(), self.field.blocks, dt)
+            resolve_wall_collision(robot)
+            resolve_goal_collision(robot, self.field.get_goals(), self.field.blocks, dt)
             resolve_block_interaction(robot, self.field.blocks)
             score_held_blocks(robot, self.field, dt)
 

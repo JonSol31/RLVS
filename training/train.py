@@ -75,6 +75,7 @@ def main():
     parser.add_argument("--seconds", type=float, default=EPISODE_SECONDS, help="Seconds per episode")
     parser.add_argument("--dt", type=float, default=DT, help="Physics dt")
     parser.add_argument("--fast", action="store_true", help="Run with faster, lower-fidelity settings")
+    parser.add_argument("--long-run", action="store_true", help="Run a longer training session using 5000 generations")
     parser.add_argument("--elite", type=int, default=ELITE_COUNT, help="Number of elites to keep each generation")
     parser.add_argument("--survival-rate", type=float, default=SURVIVAL_RATE, help="Fraction of population kept as survivors before mutation")
     parser.add_argument("--save-dir", type=str, default=".", help="Directory to save best agent and history")
@@ -83,6 +84,8 @@ def main():
 
     # apply overrides
     generations = args.generations
+    if args.long_run:
+        generations = 5000
     population_size = args.population
     eval_episodes = args.episodes
     episode_seconds = args.seconds
