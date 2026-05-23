@@ -22,10 +22,14 @@ class Robot:
         self.acceleration = config["acceleration"]
         self.turn_speed = config["turn_speed"]
 
-        self.capacity = 9
-        self.holding =  0   
+        self.capacity = config.get("capacity", 9)
+        self.holding = 0
+        self.reward = 0.0
+        self.score_timer = 0.0
+        self.score_interval = 0.2
+        self.is_scoring = False
 
-        self.team = None     
+        self.team = None
 
     def get_corners(self):
         """Return approximate square corners (for rendering + collision)."""

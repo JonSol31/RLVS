@@ -15,6 +15,8 @@ class Renderer:
         self.screen = pygame.display.set_mode((WINDOW_SIZE, WINDOW_SIZE))
         pygame.display.set_caption("RLVS - Push Back Simulator")
 
+        self.font = pygame.font.SysFont(None, 18)
+
         # scaling + coordinate transform
         self.SCALE = WINDOW_SIZE / FIELD_SIZE
         self.center_offset = WINDOW_SIZE / 2
@@ -111,7 +113,20 @@ class Renderer:
             (hx, hy),
             2,
         )
-        print(robot.x, robot.y, self.world_to_screen(robot.x, robot.y))
+
+        if robot.is_scoring:
+            pygame.draw.circle(
+                self.screen,
+                (255, 255, 0),
+                (cx, cy),
+                int(robot.SIZE * self.SCALE / 2 + 8),
+                2,
+            )
+
+        if robot.holding > 0:
+            badge = self.font.render(str(robot.holding), True, (255, 255, 255))
+            badge_rect = badge.get_rect(center=(cx, cy - 22))
+            self.screen.blit(badge, badge_rect)
 
     # -----------------------------
     # Goal rendering (rotated rectangles)
@@ -135,6 +150,16 @@ class Renderer:
         rect = rotated.get_rect(center=(cx, cy))
 
         self.screen.blit(rotated, rect.topleft)
+        self.draw_goal_opening_debug(goal)
+
+    def draw_goal_opening_debug(self, goal):
+        p1, p2 = goal.opening_endpoints()
+        x1, y1 = self.world_to_screen(*p1)
+        x2, y2 = self.world_to_screen(*p2)
+
+        pygame.draw.line(self.screen, (255, 255, 255), (x1, y1), (x2, y2), 2)
+        pygame.draw.circle(self.screen, (0, 255, 0), (x1, y1), 6, 2)
+        pygame.draw.circle(self.screen, (0, 255, 0), (x2, y2), 6, 2)
 
     def draw_goals(self, field):
         for goal in field.get_goals():

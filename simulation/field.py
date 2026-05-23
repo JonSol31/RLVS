@@ -20,6 +20,51 @@ class Goal:
         else:
             self.value = 1
 
+    def _axes(self):
+        rad = math.radians(self.angle)
+        x_axis = (math.cos(rad), math.sin(rad))
+        y_axis = (-math.sin(rad), math.cos(rad))
+        return x_axis, y_axis
+
+    def world_to_local(self, px, py):
+        dx = px - self.x
+        dy = py - self.y
+        x_axis, y_axis = self._axes()
+        local_x = dx * x_axis[0] + dy * x_axis[1]
+        local_y = dx * y_axis[0] + dy * y_axis[1]
+        return local_x, local_y
+
+    def local_to_world(self, lx, ly):
+        x_axis, y_axis = self._axes()
+        return (
+            self.x + lx * x_axis[0] + ly * y_axis[0],
+            self.y + lx * x_axis[1] + ly * y_axis[1],
+        )
+
+    def contains_point(self, px, py, padding=0.0):
+        local_x, local_y = self.world_to_local(px, py)
+        return (
+            abs(local_x) <= self.width / 2 + padding
+            and abs(local_y) <= self.height / 2 + padding
+        )
+
+    def opening_endpoints(self):
+        return (
+            self.local_to_world(-self.width / 2, 0),
+            self.local_to_world(self.width / 2, 0),
+        )
+
+    def closest_point_on_opening(self, px, py):
+        local_x, _ = self.world_to_local(px, py)
+        local_x = max(-self.width / 2, min(self.width / 2, local_x))
+        return self.local_to_world(local_x, 0)
+
+    def direction_into_goal(self, px, py):
+        _, local_y = self.world_to_local(px, py)
+        _, y_axis = self._axes()
+        sign = -1.0 if local_y > 0 else 1.0
+        return y_axis[0] * sign, y_axis[1] * sign
+
 class Field:
     SIZE = 144  # inches
     HALF = SIZE / 2  # 72

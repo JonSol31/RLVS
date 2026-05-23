@@ -59,32 +59,29 @@ def point_in_rotated_rect(px, py, gx, gy, w, h, angle):
     return abs(local_x) <= w / 2 and abs(local_y) <= h / 2
 def resolve_goal_collision(robot, goals):
     for goal in goals:
-        if point_in_rotated_rect(
-            robot.x,
-            robot.y,
-            goal.x,
-            goal.y,
-            goal.width,
-            goal.height,
-            goal.angle
-        ):
-            # simple push-out (minimal vector separation)
-            dx = robot.x - goal.x
-            dy = robot.y - goal.y
+        if goal.contains_point(robot.x, robot.y):
+            local_x, local_y = goal.world_to_local(robot.x, robot.y)
+            half_w = goal.width / 2
+            half_h = goal.height / 2
 
-            dist = math.sqrt(dx**2 + dy**2)
-            if dist == 0:
-                continue
+            dx = 0.0
+            dy = 0.0
+            if abs(local_x) > half_w:
+                dx = (half_w - abs(local_x)) * (1 if local_x > 0 else -1)
+            if abs(local_y) > half_h:
+                dy = (half_h - abs(local_y)) * (1 if local_y > 0 else -1)
 
-            nx = dx / dist
-            ny = dy / dist
+            if dx == 0.0 and dy == 0.0:
+                # block inside the goal rectangle, push out along the nearest face
+                if abs(local_x) < abs(local_y):
+                    dx = (half_w - abs(local_x)) * (1 if local_x > 0 else -1)
+                else:
+                    dy = (half_h - abs(local_y)) * (1 if local_y > 0 else -1)
 
-            push_strength = 2.0  # tweakable
+            x_axis, y_axis = goal._axes()
+            robot.x += dx * x_axis[0] + dy * y_axis[0]
+            robot.y += dx * x_axis[1] + dy * y_axis[1]
 
-            robot.x += nx * push_strength
-            robot.y += ny * push_strength
-
-            # damp velocity on collision
             robot.vx *= 0.5
             robot.vy *= 0.5
 def resolve_block_interaction(robot, blocks):
@@ -100,14 +97,9 @@ def resolve_block_interaction(robot, blocks):
         dist = math.sqrt(dx**2 + dy**2)
 
         if dist < pickup_range:
-            # ----------------------------
-            # TEAM RULE CHECK (NEW)
-            # ----------------------------
-
             robot_team = getattr(robot, "team", None)
 
             if block.team is not None and block.team != robot_team:
-                #  enemy block → SPIT OUT EFFECT
                 dx = block.x - robot.x
                 dy = block.y - robot.y
 
@@ -118,84 +110,185 @@ def resolve_block_interaction(robot, blocks):
                 nx = dx / dist
                 ny = dy / dist
 
-                # eject block away from robot
                 block.x += nx * 6
                 block.y += ny * 6
 
                 block.vx = nx * 8
                 block.vy = ny * 8
 
-                continue  # cannot pick up enemy block
+                continue
 
-            # ----------------------------
-            # PICKUP (allowed)
-            # ----------------------------
             if robot.holding < robot.capacity:
                 block.held = True
                 block.carried_by = robot
                 robot.holding += 1
+def resolve_block_collisions(blocks):
+    for i in range(len(blocks)):
+        a = blocks[i]
+        if a.held:
+            continue
+
+        for j in range(i + 1, len(blocks)):
+            b = blocks[j]
+            if b.held:
+                continue
+
+            dx = b.x - a.x
+            dy = b.y - a.y
+            min_dist = (a.SIZE + b.SIZE) / 2
+            dist = math.hypot(dx, dy)
+
+            if dist == 0 or dist >= min_dist:
+                continue
+
+            overlap = min_dist - dist
+            nx = dx / dist
+            ny = dy / dist
+
+            a.x -= nx * overlap / 2
+            a.y -= ny * overlap / 2
+            b.x += nx * overlap / 2
+            b.y += ny * overlap / 2
+
+            rel_v = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny
+            if rel_v < 0:
+                impulse = -rel_v * 0.5
+                a.vx -= impulse * nx
+                a.vy -= impulse * ny
+                b.vx += impulse * nx
+                b.vy += impulse * ny
+
 def update_carried_blocks(blocks):
+    carriers = {}
+
     for block in blocks:
         if block.held and block.carried_by is not None:
-            r = block.carried_by
+            carriers.setdefault(block.carried_by, []).append(block)
 
-            # attach block slightly in front of robot
-            rad = math.radians(r.heading)
+    for robot, held_blocks in carriers.items():
+        count = len(held_blocks)
+        rad_base = math.radians(robot.heading)
+        offset = robot.SIZE / 2 + block.SIZE / 2 + 1
+        spread = 0.35
 
-            offset = r.SIZE / 2 + 2
-
-            block.x = r.x + math.cos(rad) * offset
-            block.y = r.y + math.sin(rad) * offset
+        for idx, block in enumerate(held_blocks):
+            angle = rad_base + (idx - (count - 1) / 2) * spread
+            block.x = robot.x + math.cos(angle) * offset
+            block.y = robot.y + math.sin(angle) * offset
+            block.vx = robot.vx
+            block.vy = robot.vy
 def resolve_scoring(blocks, goals):
     for block in blocks:
         if block.held:
+            block.in_goal = False
+            continue
+
+        block.in_goal = False
+        for goal in goals:
+            dx = block.x - goal.x
+            dy = block.y - goal.y
+
+            rad = math.radians(-goal.angle)
+            local_x = dx * math.cos(rad) - dy * math.sin(rad)
+            local_y = dx * math.sin(rad) + dy * math.cos(rad)
+
+            if abs(local_y) <= goal.height / 2 and abs(local_x) <= goal.width / 2:
+                block.in_goal = True
+                break
+
+def clamp_block_in_goal_tube(blocks, goals):
+    for block in blocks:
+        if block.held or not block.in_goal:
             continue
 
         for goal in goals:
             dx = block.x - goal.x
             dy = block.y - goal.y
 
-            if abs(dx) < goal.width / 2 and abs(dy) < goal.height / 2:
-                block.in_goal = True
-def try_drop_blocks(robot):
-    # simple rule: robot automatically drops if in goal zone OR random release trigger later
-    pass
+            rad = math.radians(-goal.angle)
+            cos_r = math.cos(rad)
+            sin_r = math.sin(rad)
+
+            local_x = dx * cos_r - dy * sin_r
+            local_y = dx * sin_r + dy * cos_r
+
+            half_height = goal.height / 2 - block.SIZE / 2
+            if half_height < 0:
+                half_height = 0
+
+            if abs(local_y) > half_height:
+                local_y = max(-half_height, min(half_height, local_y))
+                block.x = goal.x + local_x * cos_r + local_y * sin_r
+                block.y = goal.y - local_x * sin_r + local_y * cos_r
+
+            break
+def score_held_blocks(robot, field, dt):
+    if robot.holding == 0:
+        robot.score_timer = 0.0
+        robot.is_scoring = False
+        return
+
+    scoring_goal = None
+    for goal in field.get_goals():
+        if goal.contains_point(robot.x, robot.y, padding=robot.SIZE / 2 + 2):
+            scoring_goal = goal
+            break
+
+    robot.is_scoring = scoring_goal is not None
+    if scoring_goal is None:
+        robot.score_timer = 0.0
+        return
+
+    robot.score_timer -= dt
+    if robot.score_timer > 0:
+        return
+
+    robot.score_timer = robot.score_interval
+
+    for block in field.blocks:
+        if block.carried_by == robot and block.held:
+            release_scored_block(robot, block, scoring_goal)
+            break
+
+
+def release_scored_block(robot, block, goal):
+    block.held = False
+    block.carried_by = None
+    block.scored_by = robot
+    robot.holding -= 1
+
+    px, py = goal.closest_point_on_opening(robot.x, robot.y)
+    normal_x, normal_y = goal.direction_into_goal(robot.x, robot.y)
+    inset = goal.height / 2 - block.SIZE / 2
+    offset = max(0.5, min(1.0, inset))
+
+    block.x = px + normal_x * offset
+    block.y = py + normal_y * offset
+
+    score_force = 8
+    block.vx = normal_x * score_force
+    block.vy = normal_y * score_force
 def score_blocks(field, score_dict):
     for block in field.blocks:
-        if block.held:
+        if not block.in_goal or block.scored:
             continue
 
         for goal in field.get_goals():
-            dx = block.x - goal.x
-            dy = block.y - goal.y
-
-            # rotated check
-            import math
-            rad = math.radians(-goal.angle)
-
-            local_x = dx * math.cos(rad) - dy * math.sin(rad)
-            local_y = dx * math.sin(rad) + dy * math.cos(rad)
-
-            if abs(local_x) <= goal.width / 2 and abs(local_y) <= goal.height / 2:
-
-                if block.in_goal:
-                    continue  # prevent double scoring
-
-                block.in_goal = True
-
-                # assign score by team ownership
+            if goal.contains_point(block.x, block.y):
+                block.scored = True
+                if block.scored_by is not None:
+                    block.scored_by.reward += goal.value * 5.0
+                    block.scored_by = None
                 if block.team == "red":
                     score_dict["red"] += goal.value
                 elif block.team == "blue":
                     score_dict["blue"] += goal.value
+                break
 def enforce_drop(robot, field):
     for block in field.blocks:
         if block.carried_by == robot:
             for goal in field.get_goals():
-                dx = robot.x - goal.x
-                dy = robot.y - goal.y
-
-                if abs(dx) < goal.width / 2 and abs(dy) < goal.height / 2:
+                if goal.contains_point(robot.x, robot.y):
                     # drop block
                     block.held = False
                     block.carried_by = None
