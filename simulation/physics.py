@@ -1,4 +1,5 @@
 import math
+import random
 
 
 FIELD_HALF = 72  # center-origin system
@@ -57,9 +58,44 @@ def point_in_rotated_rect(px, py, gx, gy, w, h, angle):
     local_y = dx * math.sin(rad) + dy * math.cos(rad)
 
     return abs(local_x) <= w / 2 and abs(local_y) <= h / 2
-def resolve_goal_collision(robot, goals):
+def _random_spawn_point_outside_goals(goals, block):
+    half = FIELD_HALF - block.SIZE
+    for _ in range(100):
+        x = random.uniform(-half, half)
+        y = random.uniform(-half, half)
+        if all(not goal.contains_point(x, y) for goal in goals):
+            return x, y
+    return x, y
+
+
+def _eject_goal_blocks(goal, blocks, goals):
+    candidates = [
+        block for block in blocks
+        if block.in_goal and not block.held and goal.contains_point(block.x, block.y)
+    ]
+    if not candidates:
+        return
+
+    count = random.randint(1, min(len(candidates), 3))
+    random.shuffle(candidates)
+    for block in candidates[:count]:
+        block.in_goal = False
+        block.held = False
+        block.carried_by = None
+        block.scored_by = None
+        block.x, block.y = _random_spawn_point_outside_goals(goals, block)
+        block.vx = random.uniform(-4, 4)
+        block.vy = random.uniform(-4, 4)
+
+
+def resolve_goal_collision(robot, goals, blocks, dt):
     for goal in goals:
         if goal.contains_point(robot.x, robot.y):
+            speed = math.hypot(robot.vx, robot.vy)
+            robot.reward -= 2.0 * dt
+            if speed > 5.0:
+                _eject_goal_blocks(goal, blocks, goals)
+
             local_x, local_y = goal.world_to_local(robot.x, robot.y)
             half_w = goal.width / 2
             half_h = goal.height / 2
@@ -72,7 +108,7 @@ def resolve_goal_collision(robot, goals):
                 dy = (half_h - abs(local_y)) * (1 if local_y > 0 else -1)
 
             if dx == 0.0 and dy == 0.0:
-                # block inside the goal rectangle, push out along the nearest face
+                # robot inside the goal rectangle, push out along the nearest face
                 if abs(local_x) < abs(local_y):
                     dx = (half_w - abs(local_x)) * (1 if local_x > 0 else -1)
                 else:
@@ -193,6 +229,8 @@ def resolve_scoring(blocks, goals):
             local_y = dx * math.sin(rad) + dy * math.cos(rad)
 
             if abs(local_y) <= goal.height / 2 and abs(local_x) <= goal.width / 2:
+                if goal.current_load(blocks) >= goal.capacity and not block.in_goal:
+                    continue
                 block.in_goal = True
                 break
 
@@ -268,21 +306,29 @@ def release_scored_block(robot, block, goal):
     score_force = 8
     block.vx = normal_x * score_force
     block.vy = normal_y * score_force
-def score_blocks(field, score_dict):
-    for block in field.blocks:
-        if not block.in_goal or block.scored:
+def score_blocks(field, score_dict, score_events):
+    for block in list(field.blocks):
+        if not block.in_goal or block.held:
             continue
 
         for goal in field.get_goals():
             if goal.contains_point(block.x, block.y):
-                block.scored = True
                 if block.scored_by is not None:
                     block.scored_by.reward += goal.value * 5.0
                     block.scored_by = None
                 if block.team == "red":
                     score_dict["red"] += goal.value
+                    score_events["red"] += 1
                 elif block.team == "blue":
                     score_dict["blue"] += goal.value
+                    score_events["blue"] += 1
+
+                block.in_goal = False
+                block.held = False
+                block.carried_by = None
+                block.x, block.y = _random_spawn_point_outside_goals(field.get_goals(), block)
+                block.vx = random.uniform(-4, 4)
+                block.vy = random.uniform(-4, 4)
                 break
 def enforce_drop(robot, field):
     for block in field.blocks:

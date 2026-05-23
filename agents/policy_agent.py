@@ -90,7 +90,11 @@ class PolicyAgent:
             time_norm = max(0.0, min(1.0, time_remaining / 60.0))
 
         # simple field distribution proxy
-        free_blocks = sum(1 for block in field.blocks if not block.held and not block.in_goal)
+        free_blocks = sum(
+            1
+            for block in field.blocks
+            if not block.held and not block.in_goal and block.team == robot.team
+        )
         total_blocks = max(1, len(field.blocks))
         block_distribution = free_blocks / total_blocks
 
@@ -115,7 +119,7 @@ class PolicyAgent:
     def clone(self):
         return PolicyAgent(weights=self.weights, biases=self.biases)
 
-    def mutate(self, rate=0.15, scale=0.5):
+    def mutate(self, rate=0.25, scale=0.6):
         for i in range(len(self.weights)):
             if random.random() < rate:
                 self.weights[i] += random.gauss(0, scale)

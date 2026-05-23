@@ -5,7 +5,7 @@ import random
 
 
 class Goal:
-    def __init__(self, x, y, width, height, angle_deg, goal_type):
+    def __init__(self, x, y, width, height, angle_deg, goal_type, capacity=15):
         self.x = x
         self.y = y
 
@@ -13,12 +13,20 @@ class Goal:
         self.height = height
         self.angle = angle_deg
         self.type = goal_type
+        self.capacity = capacity
 
         # scoring value
         if "long" in goal_type:
             self.value = 1
         else:
             self.value = 1
+
+    def current_load(self, blocks):
+        return sum(
+            1
+            for block in blocks
+            if block.in_goal and self.contains_point(block.x, block.y)
+        )
 
     def _axes(self):
         rad = math.radians(self.angle)
@@ -87,7 +95,8 @@ class Field:
                 width=54,   # -24 to 24
                 height=5,   # goal opening thickness
                 angle_deg=0,
-                goal_type="long_top"
+                goal_type="long_top",
+                capacity=15,
             )
         )
 
@@ -98,7 +107,8 @@ class Field:
                 width=54,
                 height=5,
                 angle_deg=0,
-                goal_type="long_bottom"
+                goal_type="long_bottom",
+                capacity=15,
             )
         )
 
@@ -113,7 +123,8 @@ class Field:
                 width=40,
                 height=5,
                 angle_deg=-45,
-                goal_type="center_upper"
+                goal_type="center_upper",
+                capacity=15,
             )
         )
 
@@ -124,7 +135,8 @@ class Field:
                 width=40,
                 height=5,
                 angle_deg=45,
-                goal_type="center_lower"
+                goal_type="center_lower",
+                capacity=15,
             )
         )
 

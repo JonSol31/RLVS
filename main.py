@@ -7,7 +7,7 @@ import pygame
 from simulation.match import Match
 from rendering.renderer import Renderer
 from agents.policy_agent import PolicyAgent
-from agents.random_agent import RandomAgent
+from agents.block_seeker_agent import BlockSeekerAgent
 
 
 def find_latest_agent(search_dir="."):
@@ -42,10 +42,10 @@ def main():
     if agent_path:
         print(f"Loading agent from {agent_path}")
         agent = load_agent(agent_path)
-        controllers = [agent, agent, agent, agent]
+        controllers = [agent, BlockSeekerAgent(), BlockSeekerAgent(), BlockSeekerAgent()]
     else:
-        print("No saved agent found — using random agents")
-        controllers = [RandomAgent(), RandomAgent(), RandomAgent(), RandomAgent()]
+        print("No saved agent found — using block seeker agents")
+        controllers = [BlockSeekerAgent(), BlockSeekerAgent(), BlockSeekerAgent(), BlockSeekerAgent()]
 
     clock = pygame.time.Clock()
 

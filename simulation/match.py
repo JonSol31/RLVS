@@ -44,6 +44,10 @@ class Match:
             "red": 0,
             "blue": 0
         }
+        self.score_events = {
+            "red": 0,
+            "blue": 0
+        }
 
     def update(self, dt, controllers=None, time_remaining=None):
         self.time_remaining = time_remaining
@@ -57,8 +61,8 @@ class Match:
 
             robot.update(throttle, turn, dt)
 
-            resolve_wall_collision(robot)
-            resolve_goal_collision(robot, self.field.get_goals())
+            #resolve_wall_collision(robot)
+            #resolve_goal_collision(robot, self.field.get_goals(), self.field.blocks, dt)
             resolve_block_interaction(robot, self.field.blocks)
             score_held_blocks(robot, self.field, dt)
 
@@ -71,7 +75,7 @@ class Match:
             for j in range(i + 1, len(self.robots)):
                 resolve_robot_collision(self.robots[i], self.robots[j])
 
-        score_blocks(self.field, self.score)
+        score_blocks(self.field, self.score, self.score_events)
         self.apply_match_rewards(dt)
 
     def run_episode(self, controllers=None, max_seconds=10.0, dt=0.1):
@@ -85,11 +89,10 @@ class Match:
             time_remaining = max_seconds - elapsed
             self.update(dt, controllers, time_remaining=time_remaining)
             steps = step + 1
-            if all(block.scored for block in self.field.blocks):
-                break
 
         return {
             "score": dict(self.score),
+            "score_events": dict(self.score_events),
             "rewards": [robot.reward for robot in self.robots],
             "steps": steps,
         }
@@ -127,10 +130,10 @@ class Match:
         return control
 
     def apply_match_rewards(self, dt):
-        if self.score["red"] > self.score["blue"]:
+        if self.score_events["red"] > self.score_events["blue"]:
             leading = "red"
             trailing = "blue"
-        elif self.score["blue"] > self.score["red"]:
+        elif self.score_events["blue"] > self.score_events["red"]:
             leading = "blue"
             trailing = "red"
         else:

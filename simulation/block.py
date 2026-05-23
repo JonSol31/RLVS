@@ -15,6 +15,4 @@ class Block:
         self.carried_by = None
 
         self.in_goal = False
-        self.scored = False
         self.scored_by = None
-        self.scored = False
